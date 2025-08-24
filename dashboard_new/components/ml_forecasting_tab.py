@@ -292,12 +292,28 @@ class MLForecastingTab:
                     st.error("❌ Prophet not installed. Please install with: pip install prophet")
                     return
 
-                # Get historical data
+                # Get historical data with product filtering
                 medis_data = self.data_loader.get_medis_data()
-                monthly_sales = medis_data.groupby('date')['sales'].sum()
 
-                print(f"Debug: Full data range: {monthly_sales.index.min()} to {monthly_sales.index.max()}")
-                print(f"Debug: Full data length: {len(monthly_sales)} months")
+                # Filter by selected ATOR products - SAME LOGIC AS VISUALIZATION
+                if hasattr(self, 'selected_ator_products') and self.selected_ator_products:
+                    filtered_data = medis_data[
+                        (medis_data['PRODUIT'] == 'ATOR') &
+                        (medis_data['SOUS_MARCHE'].isin(self.selected_ator_products))
+                    ]
+                    print(f"Debug: Forecast generation - Filtered data - {len(filtered_data)} rows from {len(medis_data)} total")
+                    print(f"Debug: Forecast generation - Selected products: {self.selected_ator_products}")
+                else:
+                    # If no products selected, use all ATOR data
+                    filtered_data = medis_data[medis_data['PRODUIT'] == 'ATOR']
+                    print(f"Debug: Forecast generation - No product filter - using all ATOR data: {len(filtered_data)} rows")
+
+                # Group by date and sum sales for the selected products
+                monthly_sales = filtered_data.groupby('date')['sales'].sum()
+
+                print(f"Debug: Forecast generation - After filtering: {len(monthly_sales)} months of data")
+                print(f"Debug: Forecast generation - Date range: {monthly_sales.index.min()} to {monthly_sales.index.max()}")
+                print(f"Debug: Forecast generation - Total sales in period: {monthly_sales.sum():,.0f}")
 
                 # Apply cutoff date - use provided cutoff_date or default logic
                 if cutoff_date is not None:
@@ -520,7 +536,19 @@ class MLForecastingTab:
         # Now plot each cutoff date in the 2x2 grid
         colors = ['blue', 'red', 'green', 'orange', 'purple']
         medis_data = self.data_loader.get_medis_data()
-        full_monthly_sales = medis_data.groupby('date')['sales'].sum().reset_index()
+
+        # Filter by selected ATOR products for plotting
+        if hasattr(self, 'selected_ator_products') and self.selected_ator_products:
+            filtered_data = medis_data[
+                (medis_data['PRODUIT'] == 'ATOR') &
+                (medis_data['SOUS_MARCHE'].isin(self.selected_ator_products))
+            ]
+            print(f"Debug: 4x4 grid - Filtered data - {len(filtered_data)} rows from {len(medis_data)} total")
+        else:
+            filtered_data = medis_data[medis_data['PRODUIT'] == 'ATOR']
+            print(f"Debug: 4x4 grid - No product filter - using all ATOR data: {len(filtered_data)} rows")
+
+        full_monthly_sales = filtered_data.groupby('date')['sales'].sum().reset_index()
         full_monthly_sales = full_monthly_sales.sort_values('date')
 
         for plot_idx, cutoff_date in enumerate(cutoff_dates):
@@ -697,9 +725,22 @@ class MLForecastingTab:
         """Render Prophet configurations comparison using exact same logic as ML Forecasting tab"""
         st.subheader("📊 Prophet Configurations Comparison")
 
-        # Get full historical data - same as ML Forecasting tab
+        # Get full historical data with product filtering - same as ML Forecasting tab
         medis_data = self.data_loader.get_medis_data()
-        full_monthly_sales = medis_data.groupby('date')['sales'].sum().reset_index()
+
+        # Filter by selected ATOR products
+        if hasattr(self, 'selected_ator_products') and self.selected_ator_products:
+            filtered_data = medis_data[
+                (medis_data['PRODUIT'] == 'ATOR') &
+                (medis_data['SOUS_MARCHE'].isin(self.selected_ator_products))
+            ]
+            print(f"Debug: Prophet comparison - Filtered data - {len(filtered_data)} rows from {len(medis_data)} total")
+        else:
+            # If no products selected, use all ATOR data
+            filtered_data = medis_data[medis_data['PRODUIT'] == 'ATOR']
+            print(f"Debug: Prophet comparison - No product filter - using all ATOR data: {len(filtered_data)} rows")
+
+        full_monthly_sales = filtered_data.groupby('date')['sales'].sum().reset_index()
         full_monthly_sales = full_monthly_sales.sort_values('date')
 
         # Apply cutoff date if specified - same logic as ML Forecasting tab
@@ -982,6 +1023,42 @@ class MLForecastingTab:
         else:
             self.cutoff_date = None
 
+        # Product selection for ATOR line
+        st.sidebar.subheader("💊 Product Selection")
+        st.sidebar.markdown("**ATOR Product Line**")
+
+        # Get available ATOR products
+        try:
+            medis_data = self.data_loader.get_medis_data()
+            ator_data = medis_data[medis_data['PRODUIT'] == 'ATOR']
+            available_ator_products = sorted(ator_data['SOUS_MARCHE'].unique())
+
+            # Default to all products selected
+            self.selected_ator_products = st.sidebar.multiselect(
+                "Select ATOR Products to Include:",
+                options=available_ator_products,
+                default=available_ator_products,  # All selected by default
+                help="Choose which ATOR dosages to include in the analysis",
+                key="ator_product_selection"
+            )
+
+            if not self.selected_ator_products:
+                st.sidebar.warning("⚠️ Please select at least one ATOR product")
+                self.selected_ator_products = available_ator_products
+
+        except Exception as e:
+            st.sidebar.warning(f"Could not load product data: {e}")
+            self.selected_ator_products = ['EQ ATOR 10', 'EQ ATOR 20', 'EQ ATOR 40', 'EQ ATOR 80']
+
+        # Show selected products summary
+        st.sidebar.info(f"📊 Selected: {len(self.selected_ator_products)} product(s)")
+
+        # Show which products are selected
+        if self.selected_ator_products:
+            st.sidebar.markdown("**Selected Products:**")
+            for product in self.selected_ator_products:
+                st.sidebar.markdown(f"• {product}")
+
         # Confidence intervals
         self.show_confidence = st.sidebar.checkbox(
             "Show Confidence Intervals",
@@ -1136,10 +1213,27 @@ class MLForecastingTab:
         """Render the main multi-model forecast comparison plot"""
         st.subheader("📊 Multi-Model Forecast Comparison")
 
-        # Get full historical data
+        # Get full historical data with product filtering
         medis_data = self.data_loader.get_medis_data()
-        full_monthly_sales = medis_data.groupby('date')['sales'].sum().reset_index()
+
+        # Filter by selected ATOR products
+        if hasattr(self, 'selected_ator_products') and self.selected_ator_products:
+            filtered_data = medis_data[
+                (medis_data['PRODUIT'] == 'ATOR') &
+                (medis_data['SOUS_MARCHE'].isin(self.selected_ator_products))
+            ]
+            print(f"Debug: Filtered data - {len(filtered_data)} rows from {len(medis_data)} total")
+        else:
+            # If no products selected, use all ATOR data
+            filtered_data = medis_data[medis_data['PRODUIT'] == 'ATOR']
+            print(f"Debug: No product filter - using all ATOR data: {len(filtered_data)} rows")
+
+        # Group by date and sum sales for the selected products
+        full_monthly_sales = filtered_data.groupby('date')['sales'].sum().reset_index()
         full_monthly_sales = full_monthly_sales.sort_values('date')
+
+        print(f"Debug: After grouping - {len(full_monthly_sales)} monthly data points")
+        print(f"Debug: Date range: {full_monthly_sales['date'].min()} to {full_monthly_sales['date'].max()}")
 
         # Apply cutoff date if specified
         cutoff_datetime = None
@@ -1552,9 +1646,25 @@ class MLForecastingTab:
             with st.spinner("🤖 Generating forecasts..."):
                 self.forecast_results = {}
 
-                # Get historical data
+                # Get historical data with product filtering
                 medis_data = self.data_loader.get_medis_data()
-                monthly_sales = medis_data.groupby('date')['sales'].sum()
+
+                # Filter by selected ATOR products - SAME LOGIC AS OTHER METHODS
+                if hasattr(self, 'selected_ator_products') and self.selected_ator_products:
+                    filtered_data = medis_data[
+                        (medis_data['PRODUIT'] == 'ATOR') &
+                        (medis_data['SOUS_MARCHE'].isin(self.selected_ator_products))
+                    ]
+                    print(f"Debug: Multi-model forecast - Filtered data - {len(filtered_data)} rows from {len(medis_data)} total")
+                else:
+                    # If no products selected, use all ATOR data
+                    filtered_data = medis_data[medis_data['PRODUIT'] == 'ATOR']
+                    print(f"Debug: Multi-model forecast - No product filter - using all ATOR data: {len(filtered_data)} rows")
+
+                # Group by date and sum sales for the selected products
+                monthly_sales = filtered_data.groupby('date')['sales'].sum()
+
+                print(f"Debug: Multi-model forecast - After filtering: {len(monthly_sales)} months of data")
 
                 # Analyze data characteristics for model improvement
                 if not self.data_characteristics:  # Only analyze once
