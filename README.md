@@ -47,12 +47,14 @@ This project delivers a **complete end-to-end forecasting solution** with:
   - `EnsembleModel` - Model stacking and weighted averaging
   - `ModelEvaluator` - Comprehensive performance metrics
 
-#### 📈 **Interactive Applications**
-- **`streamlit_dashboard.py`** - Original interactive dashboard (3-tab interface)
-- **`interactive_dashboard.py`** - Alternative dashboard implementation
-- **`simple_interactive_dashboard.py`** - Simplified version
-- **`streamlit_dashboard_fixed.py`** - Bug-fixed dashboard version
-- **`streamlit_evaluation_dashboard.py`** - Evaluation-focused dashboard
+#### 📈 **Advanced ML Dashboard (Primary Implementation)**
+- **`dashboard_new/`** - Complete modular Streamlit application (recommended)
+  - **`main_dashboard.py`** - Main application orchestrator
+  - **`components/`** - Dashboard component modules
+  - **`utils/`** - Core utility modules
+- **Legacy Dashboards** (for reference only):
+  - **`streamlit_dashboard.py`** - Original implementation
+  - **`interactive_dashboard.py`** - Alternative implementations
 
 #### 🧪 **Model Training & Evaluation**
 - **`train_enhanced_models.py`** - Enhanced model training script (LSTM, Transformer)
@@ -286,19 +288,19 @@ streamlit run main_dashboard.py
 - **Data Quality**: Comprehensive validation and quality reporting
 
 #### **🔮 ML Forecasting Tab**
-- **Multi-Model Comparison**: Prophet, XGBoost, Naive, Seasonal Naive, Moving Average
-- **Product Selection**: Choose ATOR dosages (10mg, 20mg, 40mg, 80mg)
-- **Ground Truth Integration**: Historical data with dashed future reference
-- **Confidence Intervals**: Uncertainty visualization for all models
-- **Interactive Controls**: Cutoff date selection and model toggling
-- **Performance Metrics**: MAPE, RMSE, R² comparison table
+- Multi-model comparison (Prophet, XGBoost, Naive, Seasonal Naive, Moving Average)
+- ATOR product selection (10mg, 20mg, 40mg, 80mg) with real-time filtering
+- Ground truth integration with historical continuity
+- Confidence intervals for uncertainty visualization
+- Interactive cutoff date selection and model toggling
+- Performance metrics (MAPE, RMSE, R²) with best model highlighting
 
 #### **🔧 Prophet Tuning Tab**
-- **Parameter Grid Interface**: Interactive Prophet configuration
-- **4-Cutoff Comparison Grid**: 2x2 plots with different time periods
-- **Configuration Testing**: 5 different Prophet setups
-- **Performance Comparison**: Metrics table with best configuration
-- **Configuration Details**: Complete parameter overview
+- Interactive parameter configuration (changepoint, seasonality, holidays)
+- 4-cutoff comparison grid (Jan, Apr, Jul, Oct 2023)
+- 5 Prophet configurations testing (Default, Flexible, Strong, Conservative, Multiplicative)
+- Performance comparison with metrics table
+- Automatic best configuration identification
 
 ---
 
@@ -375,29 +377,29 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-#### 2. Launch Interactive Dashboard
+#### 2. Launch Advanced ML Dashboard
 ```bash
-# Start the main dashboard (recommended)
-streamlit run streamlit_dashboard.py
+# Launch the new modular dashboard (recommended)
+cd dashboard_new
+streamlit run main_dashboard.py
 
-# Alternative dashboards
-streamlit run interactive_dashboard.py
-streamlit run simple_interactive_dashboard.py
+# Legacy dashboards (for comparison)
+streamlit run ../streamlit_dashboard.py
 ```
 
-#### 3. Run Model Training (Optional)
+#### 3. Data Exploration (Optional)
 ```bash
-# Train enhanced models
+# Launch Jupyter for detailed analysis
+jupyter notebook medis_sales_analysis.ipynb
+```
+
+#### 4. Run Model Training (Optional)
+```bash
+# Train enhanced models (LSTM, Transformer)
 python train_enhanced_models.py
 
 # Run comprehensive evaluation
 python automated_model_evaluation.py
-```
-
-#### 4. Data Exploration (Optional)
-```bash
-# Launch Jupyter for detailed analysis
-jupyter notebook medis_sales_analysis.ipynb
 ```
 
 ---
@@ -466,31 +468,31 @@ jupyter notebook medis_sales_analysis.ipynb
 
 ---
 
-## 📈 Dashboard Features
+## 📈 Advanced Dashboard Features
 
 ### **📊 Data Analysis Tab**
-- **Executive Overview**: Key metrics cards with business KPIs
-- **Competitive Intelligence**: Market share analysis with 15+ competitors & diverse colors
-- **Growth Analysis**: Trend visualization with 408% growth tracking
-- **Seasonal Patterns**: Monthly seasonality analysis with insights
-- **Product Analysis**: Market segment performance by dosage category
-- **Business Insights**: AI-generated recommendations and risk factors
-- **Data Quality**: Comprehensive validation and reporting
+- Executive overview with key business KPIs and metrics cards
+- Competitive intelligence with 15+ competitors using 20-color diverse palette
+- Growth analysis with 408% growth tracking and trend visualization
+- Seasonal pattern analysis with monthly insights and recommendations
+- Product segment analysis by ATOR dosage categories (10mg, 20mg, 40mg, 80mg)
+- AI-generated business insights and risk factor analysis
+- Comprehensive data quality validation and reporting
 
 ### **🔮 ML Forecasting Tab**
-- **Multi-Model Comparison**: Prophet, XGBoost, Naive, Seasonal Naive, Moving Average on single chart
-- **Product Selection**: Choose ATOR dosages (10mg, 20mg, 40mg, 80mg) with real-time filtering
-- **Ground Truth Integration**: Historical data continuity with dashed future reference
-- **Confidence Intervals**: Uncertainty visualization for Prophet and XGBoost
-- **Interactive Controls**: Cutoff date selection and model toggling
-- **Performance Metrics**: MAPE, RMSE, R² comparison with best model highlighting
+- Multi-model comparison interface (Prophet, XGBoost, Naive, Seasonal Naive, Moving Average)
+- Real-time ATOR product selection with consistent filtering across all components
+- Ground truth integration with historical data continuity and future reference
+- Confidence intervals for uncertainty visualization on all models
+- Interactive controls for cutoff date selection and model toggling
+- Performance metrics dashboard (MAPE, RMSE, R²) with automatic best model highlighting
 
 ### **🔧 Prophet Tuning Tab**
-- **Parameter Configuration**: Interactive sliders for changepoint, seasonality, holidays
-- **4-Cutoff Comparison Grid**: 2x2 plots with Jan, Apr, Jul, Oct 2023 cutoffs
-- **Configuration Testing**: 5 Prophet setups (Default, Flexible, Strong, Conservative, Multiplicative)
-- **Performance Comparison**: Metrics table with automatic best configuration identification
-- **Configuration Details**: Complete parameter overview and insights
+- Interactive parameter configuration interface (changepoint, seasonality, holidays priors)
+- 4-cutoff comparison grid with different time periods (Jan, Apr, Jul, Oct 2023)
+- 5 Prophet configurations testing (Default, Flexible Trend, Strong Seasonality, Conservative, Multiplicative)
+- Performance comparison metrics table with automatic best configuration identification
+- Complete parameter overview and configuration details
 
 ---
 
