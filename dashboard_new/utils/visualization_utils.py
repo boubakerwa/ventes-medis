@@ -47,6 +47,30 @@ class MedisVisualizationUtils:
         'warning': '#bcbd22'
     }
 
+    # Diverse color palette for multiple competitors
+    COMPETITOR_COLORS = [
+        '#1f77b4',  # Blue (MEDIS - keep consistent)
+        '#ff7f0e',  # Orange
+        '#2ca02c',  # Green
+        '#d62728',  # Red
+        '#9467bd',  # Purple
+        '#8c564b',  # Brown
+        '#e377c2',  # Pink
+        '#7f7f7f',  # Gray
+        '#bcbd22',  # Olive
+        '#17becf',  # Cyan
+        '#aec7e8',  # Light Blue
+        '#ffbb78',  # Light Orange
+        '#98df8a',  # Light Green
+        '#ff9896',  # Light Red
+        '#c5b0d5',  # Light Purple
+        '#c49c94',  # Light Brown
+        '#f7b6d2',  # Light Pink
+        '#c7c7c7',  # Light Gray
+        '#dbdb8d',  # Light Olive
+        '#9edae5'   # Light Cyan
+    ]
+
     @staticmethod
     def create_metric_cards(metrics: Dict[str, Any]) -> None:
         """
@@ -100,7 +124,7 @@ class MedisVisualizationUtils:
     @staticmethod
     def create_market_share_pie(competitive_analysis: Dict[str, Any]) -> go.Figure:
         """
-        Create market share pie chart.
+        Create market share pie chart with diverse colors.
 
         Args:
             competitive_analysis: Competitive analysis results
@@ -110,14 +134,32 @@ class MedisVisualizationUtils:
         """
         market_share = competitive_analysis['market_share_by_lab']
 
-        # Separate MEDIS from others for emphasis
-        medis_share = market_share['MEDIS']
-        others_share = {k: v for k, v in market_share.items() if k != 'MEDIS'}
+        # Sort by market share for better visualization
+        sorted_companies = sorted(market_share.items(), key=lambda x: x[1], reverse=True)
 
-        # Prepare data for pie chart
-        labels = ['MEDIS'] + list(others_share.keys())
-        values = [medis_share] + list(others_share.values())
-        colors = [MedisVisualizationUtils.COLORS['medis']] + [MedisVisualizationUtils.COLORS['competitors']] * len(others_share)
+        # Get top 8 companies for the pie chart (to avoid too many slices)
+        top_companies = sorted_companies[:8]
+        labels = [company for company, _ in top_companies]
+        values = [share for _, share in top_companies]
+
+        # Assign diverse colors, ensuring MEDIS gets the first color (blue)
+        colors = []
+        color_idx = 0
+        for company in labels:
+            if company == 'MEDIS':
+                colors.append(MedisVisualizationUtils.COMPETITOR_COLORS[0])  # Blue for MEDIS
+            else:
+                color_idx += 1
+                colors.append(MedisVisualizationUtils.COMPETITOR_COLORS[color_idx % len(MedisVisualizationUtils.COMPETITOR_COLORS)])
+
+        # If there are more companies, add an "Others" slice
+        if len(sorted_companies) > 8:
+            remaining_companies = sorted_companies[8:]
+            others_value = sum(share for _, share in remaining_companies)
+            if others_value > 0:
+                labels.append('Others')
+                values.append(others_value)
+                colors.append(MedisVisualizationUtils.COLORS['neutral'])  # Gray for others
 
         fig = go.Figure(data=[go.Pie(
             labels=labels,
@@ -130,7 +172,7 @@ class MedisVisualizationUtils:
         )])
 
         fig.update_layout(
-            title='Market Share Distribution',
+            title='Market Share Distribution (Top 8 Companies)',
             showlegend=False,
             font=dict(size=12),
             margin=dict(l=20, r=20, t=40, b=20)
@@ -192,7 +234,7 @@ class MedisVisualizationUtils:
     @staticmethod
     def create_competitor_bar_chart(competitive_analysis: Dict[str, Any]) -> go.Figure:
         """
-        Create competitor market share bar chart.
+        Create competitor market share bar chart with diverse colors.
 
         Args:
             competitive_analysis: Competitive analysis results
@@ -202,14 +244,23 @@ class MedisVisualizationUtils:
         """
         market_share = competitive_analysis['market_share_by_lab']
 
-        # Get top 10 competitors
-        top_competitors = dict(list(market_share.items())[:10])
-        labels = list(top_competitors.keys())
-        values = list(top_competitors.values())
+        # Sort by market share for better visualization
+        sorted_companies = sorted(market_share.items(), key=lambda x: x[1], reverse=True)
 
-        # Color MEDIS differently
-        colors = [MedisVisualizationUtils.COLORS['medis'] if lab == 'MEDIS'
-                 else MedisVisualizationUtils.COLORS['competitors'] for lab in labels]
+        # Get top 10 competitors
+        top_companies = sorted_companies[:10]
+        labels = [company for company, _ in top_companies]
+        values = [share for _, share in top_companies]
+
+        # Assign diverse colors, ensuring MEDIS gets blue
+        colors = []
+        color_idx = 0
+        for company in labels:
+            if company == 'MEDIS':
+                colors.append(MedisVisualizationUtils.COMPETITOR_COLORS[0])  # Blue for MEDIS
+            else:
+                color_idx += 1
+                colors.append(MedisVisualizationUtils.COMPETITOR_COLORS[color_idx % len(MedisVisualizationUtils.COMPETITOR_COLORS)])
 
         fig = go.Figure(data=[go.Bar(
             x=values,
@@ -227,7 +278,8 @@ class MedisVisualizationUtils:
             yaxis_title='Pharmaceutical Laboratory',
             font=dict(size=12),
             margin=dict(l=20, r=20, t=40, b=20),
-            height=max(400, len(labels) * 30)  # Dynamic height
+            height=max(400, len(labels) * 30),  # Dynamic height
+            showlegend=False
         )
 
         return fig
