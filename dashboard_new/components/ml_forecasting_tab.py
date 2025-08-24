@@ -41,6 +41,8 @@ class MLForecastingTab:
         self.forecast_results = {}
         self.selected_models = []
         self.data_characteristics = {}  # Store data analysis results
+        self.prophet_results = {}  # Store Prophet configuration results
+        self.prophet_config_hash = None  # Track configuration changes
 
     def _analyze_data_characteristics(self, data):
         """
@@ -241,8 +243,14 @@ class MLForecastingTab:
                 help="Controls holiday effect strength"
             )
 
+        # Create a hash of the current configuration parameters
+        import hashlib
+        current_config = f"{changepoint_prior_scale}_{seasonality_prior_scale}_{seasonality_mode}_{holidays_prior_scale}"
+        current_config_hash = hashlib.md5(current_config.encode()).hexdigest()
+
         # Generate button
         if st.button("🚀 Generate Prophet Configurations", type="primary"):
+            self.prophet_config_hash = current_config_hash
             self._generate_prophet_configurations(
                 changepoint_prior_scale=changepoint_prior_scale,
                 seasonality_prior_scale=seasonality_prior_scale,
@@ -250,16 +258,21 @@ class MLForecastingTab:
                 holidays_prior_scale=holidays_prior_scale
             )
 
-        # Display results if available
-        if hasattr(self, 'prophet_results') and self.prophet_results:
-            self._render_prophet_comparison()
+        # Display results if available and configurations match current settings
+        if (hasattr(self, 'prophet_results') and self.prophet_results and
+            hasattr(self, 'prophet_config_hash') and self.prophet_config_hash == current_config_hash):
+            self._render_prophet_comparison_grid()
+        elif hasattr(self, 'prophet_results') and self.prophet_results:
+            st.info("📊 Showing previously generated configurations. Click 'Generate Prophet Configurations' to update with current settings.")
+            self._render_prophet_comparison_grid()
 
     def _generate_prophet_configurations(self, changepoint_prior_scale, seasonality_prior_scale,
                                         seasonality_mode, holidays_prior_scale):
         """Generate forecasts for different Prophet configurations"""
         try:
             with st.spinner("🤖 Testing Prophet configurations..."):
-                self.prophet_results = {}
+                # Clear previous results
+                self.prophet_results.clear()
 
                 # Import Prophet
                 try:
@@ -272,10 +285,31 @@ class MLForecastingTab:
                 medis_data = self.data_loader.get_medis_data()
                 monthly_sales = medis_data.groupby('date')['sales'].sum()
 
+                print(f"Debug: Full data range: {monthly_sales.index.min()} to {monthly_sales.index.max()}")
+                print(f"Debug: Full data length: {len(monthly_sales)} months")
+
                 # Apply cutoff date if specified
                 if self.use_cutoff and self.cutoff_date is not None:
                     cutoff_datetime = pd.to_datetime(self.cutoff_date)
+                    original_length = len(monthly_sales)
                     monthly_sales = monthly_sales[monthly_sales.index <= cutoff_datetime]
+                    print(f"Debug: After cutoff - data range: {monthly_sales.index.min()} to {monthly_sales.index.max()}")
+                    print(f"Debug: After cutoff - data length: {len(monthly_sales)} months")
+                    print(f"Debug: Cutoff applied: {cutoff_datetime}")
+                else:
+                    # If no cutoff is specified, create one to ensure we have future dates to forecast
+                    # Use April 2023 as default cutoff to create train/test split
+                    default_cutoff = pd.Timestamp('2023-04-01')
+                    if monthly_sales.index.max() > default_cutoff:
+                        cutoff_datetime = default_cutoff
+                        original_length = len(monthly_sales)
+                        monthly_sales = monthly_sales[monthly_sales.index <= cutoff_datetime]
+                        print(f"Debug: Applied default cutoff at {cutoff_datetime}")
+                        print(f"Debug: After cutoff - data range: {monthly_sales.index.min()} to {monthly_sales.index.max()}")
+                        print(f"Debug: After cutoff - data length: {len(monthly_sales)} months")
+                    else:
+                        print(f"Debug: No cutoff applied - using full data range (insufficient future data)")
+                        cutoff_datetime = None
 
                 # Define parameter grid
                 param_configs = [
@@ -339,12 +373,34 @@ class MLForecastingTab:
 
                         model.fit(prophet_data)
 
-                        # Generate forecast
-                        future_dates = model.make_future_dataframe(periods=self.forecast_horizon, freq='M')
+                        # Generate forecast - extend to cover all years we want to analyze (2021-2024)
+                        # Calculate months needed to cover up to 2024
+                        last_date = prophet_data['ds'].max()
+                        target_end_date = pd.Timestamp('2024-12-31')
+                        months_needed = int((target_end_date.year - last_date.year) * 12 + (target_end_date.month - last_date.month))
+
+                        # Ensure we have at least the original forecast horizon
+                        extended_horizon = max(months_needed + 12, self.forecast_horizon)
+
+                        print(f"Debug: Prophet {config['name']} - Last historical date: {last_date}")
+                        print(f"Debug: Prophet {config['name']} - Target end date: {target_end_date}")
+                        print(f"Debug: Prophet {config['name']} - Months needed: {months_needed}")
+                        print(f"Debug: Prophet {config['name']} - Extended horizon: {extended_horizon}")
+
+                        future_dates = model.make_future_dataframe(periods=extended_horizon, freq='M')
+                        print(f"Debug: Prophet {config['name']} - Future dates range: {future_dates['ds'].min()} to {future_dates['ds'].max()}")
                         forecast = model.predict(future_dates)
 
-                        # Extract forecast values
-                        forecast_values = forecast.tail(self.forecast_horizon).set_index('ds')['yhat']
+                        # Extract all forecast values (not just the last horizon)
+                        forecast_values = forecast.set_index('ds')['yhat']
+                        # Filter to keep only the extended period we need
+                        forecast_values = forecast_values[forecast_values.index >= last_date]
+
+                        # Extract confidence intervals for the extended period
+                        lower_bound = forecast.set_index('ds')['yhat_lower']
+                        upper_bound = forecast.set_index('ds')['yhat_upper']
+                        lower_bound = lower_bound[lower_bound.index >= last_date]
+                        upper_bound = upper_bound[upper_bound.index >= last_date]
 
                         # Calculate metrics
                         metrics = {}
@@ -378,8 +434,8 @@ class MLForecastingTab:
                         # Store results
                         self.prophet_results[config['name']] = {
                             'forecast': forecast_values,
-                            'lower_bound': forecast.tail(self.forecast_horizon)['yhat_lower'].values,
-                            'upper_bound': forecast.tail(self.forecast_horizon)['yhat_upper'].values,
+                            'lower_bound': lower_bound,
+                            'upper_bound': upper_bound,
                             'metrics': metrics,
                             'config': config
                         }
@@ -398,122 +454,171 @@ class MLForecastingTab:
         except Exception as e:
             st.error(f"Error in Prophet configuration testing: {e}")
 
-    def _render_prophet_comparison(self):
-        """Render Prophet configurations comparison plot"""
+    def _render_prophet_comparison_grid(self):
+        """Render Prophet configurations comparison using exact same logic as ML Forecasting tab"""
         st.subheader("📊 Prophet Configurations Comparison")
 
-        # Get full historical data
+        # Get full historical data - same as ML Forecasting tab
         medis_data = self.data_loader.get_medis_data()
         full_monthly_sales = medis_data.groupby('date')['sales'].sum().reset_index()
         full_monthly_sales = full_monthly_sales.sort_values('date')
 
-        # Apply cutoff date if specified
+        # Apply cutoff date if specified - same logic as ML Forecasting tab
         cutoff_datetime = None
         if self.use_cutoff and self.cutoff_date is not None:
             cutoff_datetime = pd.to_datetime(self.cutoff_date)
             monthly_sales = full_monthly_sales[full_monthly_sales['date'] <= cutoff_datetime]
         else:
-            monthly_sales = full_monthly_sales
+            # Apply default cutoff like we do in generation
+            default_cutoff = pd.Timestamp('2023-04-01')
+            if full_monthly_sales['date'].max() > default_cutoff:
+                cutoff_datetime = default_cutoff
+                monthly_sales = full_monthly_sales[full_monthly_sales['date'] <= cutoff_datetime]
+            else:
+                monthly_sales = full_monthly_sales
 
-        # Create comparison plot
+        print(f"Debug: Prophet comparison - monthly_sales shape: {monthly_sales.shape}")
+        print(f"Debug: Prophet comparison - monthly_sales date range: {monthly_sales['date'].min() if len(monthly_sales) > 0 else 'empty'} to {monthly_sales['date'].max() if len(monthly_sales) > 0 else 'empty'}")
+        print(f"Debug: Prophet comparison - Full historical data shape: {full_monthly_sales.shape}")
+        print(f"Debug: Prophet comparison - Cutoff used: {cutoff_datetime is not None}")
+        if cutoff_datetime is not None:
+            future_data_count = len(full_monthly_sales[full_monthly_sales['date'] > cutoff_datetime])
+            print(f"Debug: Prophet comparison - Historical data points beyond cutoff: {future_data_count}")
+
+        # Create single comprehensive plot - same as ML Forecasting tab
         fig = go.Figure()
 
-        # Add historical data
-        fig.add_trace(go.Scatter(
-            x=pd.to_datetime(monthly_sales['date']),
-            y=monthly_sales['sales'].values.astype(float),
-            mode='lines+markers',
-            name='Historical Data',
-            line=dict(color='black', width=2),
-            marker=dict(size=4),
-            hovertemplate='<b>%{x}</b><br>Actual: %{y:,.0f} boxes<extra></extra>'
-        ))
+        # Add historical data (ground truth) - exact same logic as ML Forecasting tab
+        try:
+            if len(monthly_sales) == 0:
+                raise ValueError("No historical data available after cutoff filtering")
 
-        # Add future historical data if cutoff is used
-        if cutoff_datetime is not None and len(full_monthly_sales) > len(monthly_sales):
-            future_historical = full_monthly_sales[full_monthly_sales['date'] > cutoff_datetime]
-            if len(future_historical) > 0:
-                fig.add_trace(go.Scatter(
-                    x=pd.to_datetime(future_historical['date']),
-                    y=future_historical['sales'].values.astype(float),
-                    mode='lines+markers',
-                    name='Actual Continuation (Reference)',
-                    line=dict(color='gray', width=2, dash='dash'),
-                    marker=dict(size=4, symbol='diamond'),
-                    hovertemplate='<b>%{x}</b><br>Actual: %{y:,.0f} boxes<extra></extra>'
-                ))
+            hist_index = pd.to_datetime(monthly_sales['date'])
+            hist_values = monthly_sales['sales'].values.astype(float)
 
-        # Define colors for different configurations (hex format for plotly)
-        color_map = {
-            'blue': {'line': 'blue', 'fill': 'rgba(0, 0, 255, 0.1)'},
-            'red': {'line': 'red', 'fill': 'rgba(255, 0, 0, 0.1)'},
-            'green': {'line': 'green', 'fill': 'rgba(0, 255, 0, 0.1)'},
-            'orange': {'line': 'orange', 'fill': 'rgba(255, 165, 0, 0.1)'},
-            'purple': {'line': 'purple', 'fill': 'rgba(128, 0, 128, 0.1)'},
-            'brown': {'line': 'brown', 'fill': 'rgba(165, 42, 42, 0.1)'},
-            'pink': {'line': 'pink', 'fill': 'rgba(255, 192, 203, 0.1)'},
-            'gray': {'line': 'gray', 'fill': 'rgba(128, 128, 128, 0.1)'}
-        }
-        colors = list(color_map.keys())
+            print(f"Debug: Prophet comparison - hist_values length: {len(hist_values)}")
+            print(f"Debug: Prophet comparison - hist_values last value: {hist_values[-1] if len(hist_values) > 0 else 'empty'}")
 
-        # Add forecast lines for each Prophet configuration
-        for i, (config_name, result) in enumerate(self.prophet_results.items()):
-            if 'forecast' in result and len(result['forecast']) > 0:
-                color_key = colors[i % len(colors)]
-                color_info = color_map[color_key]
+            # Add solid line for historical data up to cutoff
+            fig.add_trace(go.Scatter(
+                x=hist_index,
+                y=hist_values,
+                mode='lines+markers',
+                name='Historical (Ground Truth)',
+                line=dict(color='black', width=3),
+                marker=dict(size=4),
+                hovertemplate='<b>%{x}</b><br>Actual Sales: %{y:,.0f} boxes<extra></extra>'
+            ))
 
-                # Add forecast line
-                fig.add_trace(go.Scatter(
-                    x=result['forecast'].index,
-                    y=result['forecast'].values.astype(float),
-                    mode='lines',
-                    name=f'{config_name} (MAPE: {result["metrics"].get("MAPE", 0):.1f}%)',
-                    line=dict(color=color_info['line'], width=2),
-                    hovertemplate=f'<b>{config_name}</b><br>%{{x}}<br>Forecast: %{{y:,.0f}} boxes<extra></extra>'
-                ))
+            print(f"Debug: Prophet comparison - Added historical data trace with {len(hist_index)} points")
 
-                # Add confidence intervals if available
-                if 'lower_bound' in result and 'upper_bound' in result:
-                    fig.add_trace(go.Scatter(
-                        x=result['forecast'].index,
-                        y=result['lower_bound'].astype(float),
-                        mode='lines',
-                        line=dict(width=0),
-                        showlegend=False,
-                        hoverinfo='skip'
-                    ))
+            # Add historical trend extension if there's actual data beyond cutoff - same as ML Forecasting tab
+            if cutoff_datetime is not None and len(full_monthly_sales) > len(monthly_sales):
+                try:
+                    future_historical = full_monthly_sales[full_monthly_sales['date'] > cutoff_datetime]
 
-                    fig.add_trace(go.Scatter(
-                        x=result['forecast'].index,
-                        y=result['upper_bound'].astype(float),
-                        mode='lines',
-                        fill='tonexty',
-                        fillcolor=color_info['fill'],
-                        line=dict(width=0),
-                        showlegend=False,
-                        hoverinfo='skip',
-                        name=f'{config_name} CI'
-                    ))
+                    if len(future_historical) > 0:
+                        print(f"Debug: Prophet comparison - Found {len(future_historical)} historical data points beyond cutoff")
 
-        # Update layout
-        fig.update_layout(
-            title='Prophet Configurations Comparison',
-            xaxis_title='Date',
-            yaxis_title='Sales (Boxes)',
-            height=600,
-            hovermode='x unified'
-        )
+                        future_hist_index = pd.to_datetime(future_historical['date'])
+                        future_hist_values = future_historical['sales'].values.astype(float)
 
-        # Add vertical line for cutoff if used
-        if cutoff_datetime is not None:
-            fig.add_vline(
-                x=cutoff_datetime,
-                line_dash="dash",
-                line_color="red",
-                annotation_text="Forecast Start"
+                        fig.add_trace(go.Scatter(
+                            x=future_hist_index,
+                            y=future_hist_values,
+                            mode='lines+markers',
+                            name='Actual Continuation (Reference)',
+                            line=dict(color='gray', width=2, dash='dash'),
+                            marker=dict(size=4, symbol='diamond'),
+                            hovertemplate='<b>%{x}</b><br>Actual: %{y:,.0f} boxes<extra></extra>'
+                        ))
+                except Exception as e:
+                    print(f"Debug: Prophet comparison - Error adding future historical data: {e}")
+
+            # Add forecast lines for each Prophet configuration - same logic as ML Forecasting tab
+            colors = ['blue', 'red', 'green', 'orange', 'purple']
+            available_models = list(self.prophet_results.keys())
+
+            print(f"Debug: Prophet comparison - Available prophet results: {available_models}")
+
+            for model_idx, model_name in enumerate(available_models):
+                try:
+                    if model_name in self.prophet_results:
+                        result = self.prophet_results[model_name]
+                        forecast_data = result.get('forecast')
+
+                        if forecast_data is not None and len(forecast_data) > 0:
+                            print(f"Debug: Prophet comparison - Processing {model_name}: {len(forecast_data)} forecast points")
+                            print(f"Debug: Prophet comparison - {model_name} forecast date range: {forecast_data.index.min()} to {forecast_data.index.max()}")
+
+                            # Add forecast line
+                            fig.add_trace(go.Scatter(
+                                x=forecast_data.index,
+                                y=forecast_data.values.astype(float),
+                                mode='lines',
+                                name=f'{model_name} (MAPE: {result["metrics"].get("MAPE", 0):.1f}%)',
+                                line=dict(color=colors[model_idx % len(colors)], width=2),
+                                hovertemplate=f'<b>{model_name}</b><br>%{{x}}<br>Forecast: %{{y:,.0f}} boxes<extra></extra>'
+                            ))
+
+                            # Add confidence intervals if available
+                            if 'lower_bound' in result and 'upper_bound' in result:
+                                lower_bound = result['lower_bound']
+                                upper_bound = result['upper_bound']
+
+                                if len(lower_bound) > 0 and len(upper_bound) > 0:
+                                    fig.add_trace(go.Scatter(
+                                        x=forecast_data.index,
+                                        y=lower_bound.values.astype(float),
+                                        mode='lines',
+                                        line=dict(width=0),
+                                        showlegend=False,
+                                        hoverinfo='skip'
+                                    ))
+
+                                    fig.add_trace(go.Scatter(
+                                        x=forecast_data.index,
+                                        y=upper_bound.values.astype(float),
+                                        mode='lines',
+                                        fill='tonexty',
+                                        fillcolor=f'rgba({colors[model_idx]}, 0.1)',
+                                        line=dict(width=0),
+                                        showlegend=False,
+                                        hoverinfo='skip',
+                                        name=f'{model_name} CI'
+                                    ))
+                        else:
+                            print(f"Debug: Prophet comparison - No forecast data for {model_name}")
+                except Exception as e:
+                    print(f"Debug: Prophet comparison - Error processing {model_name}: {e}")
+
+            # Update layout - same as ML Forecasting tab
+            fig.update_layout(
+                title='Prophet Configurations Comparison',
+                xaxis_title='Date',
+                yaxis_title='Sales (Boxes)',
+                height=600,
+                hovermode='x unified'
             )
 
-        st.plotly_chart(fig, use_container_width=True)
+            # Add vertical line for cutoff if used - same as ML Forecasting tab
+            if cutoff_datetime is not None:
+                try:
+                    cutoff_str = cutoff_datetime.strftime('%Y-%m-%d')
+                    fig.add_vline(
+                        x=cutoff_str,
+                        line_dash="dash",
+                        line_color="red",
+                        annotation_text="Forecast Start"
+                    )
+                except Exception as e:
+                    print(f"Debug: Error adding vertical line: {e}")
+
+            st.plotly_chart(fig, use_container_width=True)
+
+        except Exception as e:
+            st.error(f"Error rendering prophet comparison: {e}")
+            print(f"Debug: Prophet comparison rendering error: {e}")
 
         # Display metrics table
         st.subheader("📈 Configuration Performance")
@@ -540,6 +645,23 @@ class MLForecastingTab:
             # Show best configuration
             best_config = metrics_df.loc[metrics_df['MAPE'].idxmin()]
             st.success(f"🎯 Best Configuration: **{best_config['Configuration']}** (MAPE: {best_config['MAPE']:.1f}%)")
+
+        # Show configuration details
+        st.subheader("🔧 Configuration Details")
+        config_details = []
+        for config_name, result in self.prophet_results.items():
+            config = result.get('config', {})
+            config_details.append({
+                'Configuration': config_name,
+                'Changepoint Prior Scale': config.get('changepoint_prior_scale', 0),
+                'Seasonality Prior Scale': config.get('seasonality_prior_scale', 0),
+                'Holidays Prior Scale': config.get('holidays_prior_scale', 0),
+                'Seasonality Mode': config.get('seasonality_mode', 'N/A')
+            })
+
+        if config_details:
+            config_df = pd.DataFrame(config_details)
+            st.dataframe(config_df, use_container_width=True)
 
     def render(self):
         """
