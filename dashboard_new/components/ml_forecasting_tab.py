@@ -404,6 +404,7 @@ class MLForecastingTab:
 
                     print(f"Debug: {model_name} lower bound length: {len(lower) if hasattr(lower, '__len__') else 'N/A'}")
                     print(f"Debug: {model_name} upper bound length: {len(upper) if hasattr(upper, '__len__') else 'N/A'}")
+                    print(f"Debug: forecast_data length: {len(forecast_data)}")
 
                     try:
                         # Convert hex color to rgba for confidence interval
@@ -415,10 +416,25 @@ class MLForecastingTab:
 
                         print(f"Debug: {model_name} confidence interval color: {rgba_color}")
 
-                        print(f"Debug: Creating upper CI trace for {model_name}")
+                        # Confidence intervals should only cover actual forecast period, not continuity point
+                        # Use only the CI portion that corresponds to actual predictions
+                        if len(forecast_data) > len(lower):
+                            print(f"Debug: Forecast data has {len(forecast_data)} points (including continuity), CI has {len(lower)} points")
+                            # Use original CI arrays without extending - they should only cover the prediction period
+                            extended_lower = lower
+                            extended_upper = upper
+                            ci_index = forecast_data.index[1:]  # Skip continuity point, use only forecast period
+                            print(f"Debug: Using CI for forecast period only: {len(ci_index)} points")
+                        else:
+                            extended_lower = lower
+                            extended_upper = upper
+                            ci_index = forecast_data.index[-len(lower):]  # Use only CI portion
+                            print(f"Debug: Using original CI with {len(extended_lower)} points")
+
+                        print(f"Debug: Creating upper CI trace for {model_name} with {len(ci_index)} points")
                         fig.add_trace(go.Scatter(
-                            x=forecast_data.index,
-                            y=upper,
+                            x=ci_index,
+                            y=extended_upper,
                             mode='lines',
                             name=f'{model_name} Upper CI',
                             line=dict(color=colors[i % len(colors)], width=1, dash='dot'),
@@ -428,8 +444,8 @@ class MLForecastingTab:
 
                         print(f"Debug: Creating lower CI trace for {model_name}")
                         fig.add_trace(go.Scatter(
-                            x=forecast_data.index,
-                            y=lower,
+                            x=ci_index,
+                            y=extended_lower,
                             mode='lines',
                             name=f'{model_name} Lower CI',
                             line=dict(color=colors[i % len(colors)], width=1, dash='dot'),
@@ -442,6 +458,8 @@ class MLForecastingTab:
                         print(f"Debug: Successfully added CI traces for {model_name}")
                     except Exception as e:
                         print(f"Debug: Error in CI creation for {model_name}: {str(e)}")
+                        import traceback
+                        traceback.print_exc()
                         # Continue without confidence intervals
                         pass
 
