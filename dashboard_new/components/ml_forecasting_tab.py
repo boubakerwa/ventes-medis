@@ -40,6 +40,159 @@ class MLForecastingTab:
         self.analysis_engine = None
         self.forecast_results = {}
         self.selected_models = []
+        self.data_characteristics = {}  # Store data analysis results
+
+    def _analyze_data_characteristics(self, data):
+        """
+        Comprehensive data analysis to understand patterns and guide model improvements
+        """
+        print("🔍 Analyzing data characteristics for model improvement...")
+
+        characteristics = {
+            'length': len(data),
+            'date_range': (data.index.min(), data.index.max()),
+            'frequency': pd.infer_freq(data.index) if len(data) > 1 else None,
+            'missing_values': data.isnull().sum().sum(),
+            'zero_values': (data == 0).sum().sum(),
+            'negative_values': (data < 0).sum().sum(),
+        }
+
+        # Statistical properties
+        characteristics['mean'] = data.mean()
+        characteristics['std'] = data.std()
+        characteristics['cv'] = data.std() / data.mean() if data.mean() != 0 else float('inf')  # Coefficient of variation
+        characteristics['skewness'] = data.skew()
+        characteristics['kurtosis'] = data.kurtosis()
+
+        # Trend analysis
+        if len(data) >= 12:
+            from sklearn.linear_model import LinearRegression
+            X = np.arange(len(data)).reshape(-1, 1)
+            y = data.values
+            reg = LinearRegression().fit(X, y)
+            characteristics['trend_slope'] = reg.coef_[0]
+            characteristics['trend_r2'] = reg.score(X, y)
+
+        # Seasonality analysis
+        if len(data) >= 24:
+            # Decompose time series
+            from statsmodels.tsa.seasonal import seasonal_decompose
+            try:
+                decomposition = seasonal_decompose(data, model='additive', period=12)
+                characteristics['seasonal_strength'] = decomposition.seasonal.std() / data.std()
+                characteristics['trend_strength'] = decomposition.trend.std() / data.std()
+                characteristics['residual_strength'] = decomposition.resid.std() / data.std()
+            except:
+                characteristics['seasonal_strength'] = None
+                characteristics['trend_strength'] = None
+                characteristics['residual_strength'] = None
+
+        # Stationarity tests
+        if len(data) >= 12:
+            from statsmodels.tsa.stattools import adfuller, kpss
+            try:
+                # Augmented Dickey-Fuller test
+                adf_result = adfuller(data.dropna())
+                characteristics['adf_pvalue'] = adf_result[1]
+                characteristics['adf_stationary'] = adf_result[1] < 0.05
+
+                # KPSS test
+                kpss_result = kpss(data.dropna(), regression='c')
+                characteristics['kpss_pvalue'] = kpss_result[1]
+                characteristics['kpss_stationary'] = kpss_result[1] > 0.05
+            except:
+                characteristics['adf_pvalue'] = None
+                characteristics['adf_stationary'] = None
+                characteristics['kpss_pvalue'] = None
+                characteristics['kpss_stationary'] = None
+
+        # Autocorrelation analysis
+        if len(data) >= 12:
+            from statsmodels.tsa.stattools import acf, pacf
+            try:
+                acf_values = acf(data.dropna(), nlags=min(12, len(data)-1))
+                pacf_values = pacf(data.dropna(), nlags=min(12, len(data)-1))
+                characteristics['acf_values'] = acf_values
+                characteristics['pacf_values'] = pacf_values
+                characteristics['significant_lags'] = np.where(np.abs(acf_values) > 0.2)[0].tolist()
+            except:
+                characteristics['acf_values'] = None
+                characteristics['pacf_values'] = None
+                characteristics['significant_lags'] = []
+
+        # Outlier detection
+        Q1 = data.quantile(0.25)
+        Q3 = data.quantile(0.75)
+        IQR = Q3 - Q1
+        outliers = ((data < (Q1 - 1.5 * IQR)) | (data > (Q3 + 1.5 * IQR))).sum()
+        characteristics['outliers_count'] = outliers
+        characteristics['outliers_percentage'] = outliers / len(data) * 100
+
+        self.data_characteristics = characteristics
+
+        # Print analysis results
+        print("📊 Data Characteristics Analysis:")
+        print(f"   Length: {characteristics['length']} observations")
+        print(f"   Date Range: {characteristics['date_range'][0]} to {characteristics['date_range'][1]}")
+        print(f"   Mean: {characteristics['mean']:.2f}, Std: {characteristics['std']:.2f}")
+        print(f"   CV (Coefficient of Variation): {characteristics['cv']:.3f}")
+        print(f"   Trend Slope: {characteristics.get('trend_slope', 'N/A')}")
+        print(f"   Seasonal Strength: {characteristics.get('seasonal_strength', 'N/A')}")
+        print(f"   Stationary (ADF): {characteristics.get('adf_stationary', 'N/A')}")
+        print(f"   Outliers: {characteristics['outliers_percentage']:.1f}%")
+
+        return characteristics
+
+    def _get_model_improvement_recommendations(self, characteristics):
+        """
+        Provide specific model improvement recommendations based on data characteristics
+        """
+        recommendations = []
+
+        # Based on trend strength
+        if characteristics.get('trend_strength') and characteristics['trend_strength'] > 0.3:
+            recommendations.append("🔥 Strong trend detected - consider ARIMA/SARIMA models")
+            recommendations.append("📈 Use trend-aware features in XGBoost (exponential moving averages)")
+
+        # Based on seasonality
+        if characteristics.get('seasonal_strength') and characteristics['seasonal_strength'] > 0.3:
+            recommendations.append("🌊 Strong seasonality detected - seasonal decomposition could help")
+            recommendations.append("📅 Add more seasonal features (quarterly, yearly patterns)")
+
+        # Based on stationarity
+        if characteristics.get('adf_stationary') is False:
+            recommendations.append("⚠️ Data is not stationary - consider differencing or transformations")
+            recommendations.append("🔄 Try log transformation to stabilize variance")
+
+        # Based on autocorrelation
+        if characteristics.get('significant_lags'):
+            significant_lags = characteristics['significant_lags']
+            if len(significant_lags) > 3:
+                recommendations.append(f"🎯 Strong autocorrelation at lags {significant_lags[:5]}")
+                recommendations.append("🔄 Consider ARIMA with appropriate lag orders")
+
+        # Based on coefficient of variation
+        cv = characteristics.get('cv', 0)
+        if cv > 0.5:
+            recommendations.append("📊 High variability detected - consider robust models")
+            recommendations.append("🛡️ Use median-based metrics instead of mean")
+
+        # Based on outliers
+        outlier_pct = characteristics.get('outliers_percentage', 0)
+        if outlier_pct > 5:
+            recommendations.append(f"⚠️ {outlier_pct:.1f}% outliers detected")
+            recommendations.append("🔧 Consider robust scaling or outlier removal")
+
+        # Based on data length
+        data_length = characteristics.get('length', 0)
+        if data_length < 24:
+            recommendations.append("📉 Limited data - focus on simple, robust models")
+            recommendations.append("🎯 Use cross-validation with small folds")
+        elif data_length > 60:
+            recommendations.append("📈 Sufficient data - can try more complex models")
+            recommendations.append("🧠 Consider LSTM or transformer-based models")
+
+        return recommendations
 
     def render(self):
         """
@@ -684,6 +837,43 @@ class MLForecastingTab:
                 # Get historical data
                 medis_data = self.data_loader.get_medis_data()
                 monthly_sales = medis_data.groupby('date')['sales'].sum()
+
+                # Analyze data characteristics for model improvement
+                if not self.data_characteristics:  # Only analyze once
+                    self.data_characteristics = self._analyze_data_characteristics(monthly_sales)
+
+                    # Show data analysis results and recommendations
+                    with st.expander("🔍 Data Characteristics Analysis", expanded=True):
+                        st.markdown("**📊 Data Summary:**")
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.metric("Data Points", f"{len(monthly_sales)} months")
+                        with col2:
+                            st.metric("Date Range", f"{monthly_sales.index.min().strftime('%Y-%m')} to {monthly_sales.index.max().strftime('%Y-%m')}")
+                        with col3:
+                            st.metric("Mean Sales", f"{monthly_sales.mean():.0f}")
+
+                        st.markdown("**📈 Key Statistics:**")
+                        col1, col2, col3, col4 = st.columns(4)
+                        with col1:
+                            cv = self.data_characteristics.get('cv', 0)
+                            st.metric("Variability (CV)", f"{cv:.3f}")
+                        with col2:
+                            seasonal = self.data_characteristics.get('seasonal_strength')
+                            st.metric("Seasonality", f"{seasonal:.3f}" if seasonal else "N/A")
+                        with col3:
+                            trend = self.data_characteristics.get('trend_strength')
+                            st.metric("Trend", f"{trend:.3f}" if trend else "N/A")
+                        with col4:
+                            outliers = self.data_characteristics.get('outliers_percentage', 0)
+                            st.metric("Outliers", f"{outliers:.1f}%")
+
+                        # Show recommendations
+                        recommendations = self._get_model_improvement_recommendations(self.data_characteristics)
+                        if recommendations:
+                            st.markdown("**💡 Model Improvement Recommendations:**")
+                            for rec in recommendations:
+                                st.markdown(f"- {rec}")
 
                 # Apply cutoff date if specified
                 if self.use_cutoff and self.cutoff_date is not None:
