@@ -1,0 +1,156 @@
+#!/usr/bin/env python3
+"""
+MEDIS Sales Forecasting Dashboard Demo Script
+
+This script demonstrates how to use the new modular MEDIS sales forecasting dashboard.
+It shows the complete workflow from data loading to ML forecasting.
+
+Author: AI Assistant
+Date: 2025-01-09
+"""
+
+import sys
+import os
+sys.path.append('.')
+
+def main():
+    """Main demo function"""
+    print("💊 MEDIS Sales Forecasting Dashboard Demo")
+    print("=" * 50)
+    print()
+
+    print("🚀 Welcome to the MEDIS Sales Forecasting Dashboard!")
+    print()
+    print("This demo will show you how to use the new modular dashboard.")
+    print()
+
+    print("📊 DASHBOARD OVERVIEW:")
+    print("The dashboard consists of 3 main tabs:")
+    print()
+    print("1. 📊 Data Analysis Tab")
+    print("   • Executive overview with key business metrics")
+    print("   • Competitive intelligence and market share analysis")
+    print("   • Growth trend visualization (408% MEDIS growth)")
+    print("   • Seasonal pattern analysis")
+    print("   • Product performance by dosage category")
+    print("   • Business insights and recommendations")
+    print()
+
+    print("2. 🔮 ML Forecasting Tab")
+    print("   • Multi-model comparison on single chart")
+    print("   • Ground truth vs forecast visualization")
+    print("   • Prophet, XGBoost, TimesFM models")
+    print("   • Model performance metrics (MAPE, RMSE, R²)")
+    print("   • Interactive forecast generation")
+    print()
+
+    print("3. 🔄 Automated Evaluation Tab (Coming Soon)")
+    print("   • Walk-forward validation")
+    print("   • Statistical significance testing")
+    print("   • Model robustness analysis")
+    print()
+
+    print("🏗️ MODULAR ARCHITECTURE:")
+    print("The dashboard is built with a clean modular structure:")
+    print()
+    print("📁 dashboard_new/")
+    print("├── 📂 utils/                          # Core utilities")
+    print("│   ├── 📄 data_loader.py              # Data loading & preprocessing")
+    print("│   ├── 📄 analysis_engine.py          # Business intelligence")
+    print("│   └── 📄 visualization_utils.py      # Chart creation")
+    print("│")
+    print("├── 📂 components/                     # Dashboard tabs")
+    print("│   ├── 📄 data_analysis_tab.py        # Data analysis interface")
+    print("│   └── 📄 ml_forecasting_tab.py       # ML forecasting interface")
+    print("│")
+    print("└── 📄 main_dashboard.py               # Main application")
+    print()
+
+    print("🚀 HOW TO LAUNCH THE DASHBOARD:")
+    print()
+    print("1. Navigate to the dashboard directory:")
+    print("   cd /Users/wassimboubaker/creativity/ventes-medis/dashboard_new")
+    print()
+    print("2. Launch the dashboard:")
+    print("   streamlit run main_dashboard.py")
+    print()
+    print("3. The dashboard will open in your browser at http://localhost:8501")
+    print()
+
+    print("📋 USING THE DASHBOARD:")
+    print()
+    print("Step 1: Data Analysis Tab")
+    print("   • The dashboard automatically loads and analyzes your data")
+    print("   • View executive metrics, competitive analysis, and growth trends")
+    print("   • Explore seasonal patterns and product performance")
+    print("   • Review business insights and recommendations")
+    print()
+    print("Step 2: ML Forecasting Tab")
+    print("   • Configure forecast horizon (3-24 months)")
+    print("   • Select models: Prophet, XGBoost, TimesFM, Baselines")
+    print("   • Click 'Generate Forecasts' to create predictions")
+    print("   • View multi-model comparison on interactive chart")
+    print("   • Compare model performance metrics")
+    print("   • Download forecast data as CSV")
+    print()
+
+    print("🔬 AVAILABLE MODELS:")
+    print()
+    print("1. 🤖 Prophet")
+    print("   • Facebook's time series forecasting library")
+    print("   • Handles seasonality, trends, and holidays")
+    print("   • Provides confidence intervals")
+    print()
+    print("2. 🧠 XGBoost")
+    print("   • Gradient boosting with engineered features")
+    print("   • Uses lag features, seasonal indicators")
+    print("   • Excellent for complex patterns")
+    print()
+    print("3. 🌟 TimesFM (Coming Soon)")
+    print("   • Google's foundation model for time series")
+    print("   • Advanced deep learning approach")
+    print("   • Placeholder with seasonal baseline")
+    print()
+    print("4. 📊 Baseline Models")
+    print("   • Naive: Last value repeated")
+    print("   • Seasonal Naive: Same month previous year")
+    print("   • Moving Average: 12-month rolling average")
+    print()
+
+    print("📊 DATASET OVERVIEW:")
+    print("   • 7,424 pharmaceutical sales records")
+    print("   • April 2018 to April 2025 (85 months)")
+    print("   • 15 pharmaceutical laboratories")
+    print("   • ATOR (atorvastatin) cholesterol medication")
+    print("   • 4 dosage categories (10mg, 20mg, 40mg, 80mg)")
+    print("   • MEDIS: 27.5% market share, 408% growth")
+    print()
+
+    print("🎯 BUSINESS IMPACT:")
+    print("   • Market leader analysis for MEDIS")
+    print("   • Competitive intelligence dashboard")
+    print("   • Sales forecasting for planning")
+    print("   • Growth opportunity identification")
+    print("   • Seasonal pattern insights")
+    print()
+
+    print("🔧 TECHNICAL FEATURES:")
+    print("   • Modular, maintainable codebase")
+    print("   • Interactive Plotly visualizations")
+    print("   • Streamlit caching for performance")
+    print("   • Error handling and validation")
+    print("   • Production-ready architecture")
+    print()
+
+    print("✅ Ready to explore!")
+    print()
+    print("Launch the dashboard and start exploring your pharmaceutical sales data:")
+    print()
+    print("💻 Command: streamlit run main_dashboard.py")
+    print()
+    print("📈 Features: Multi-model forecasting, business intelligence, competitive analysis")
+    print()
+    print("🎉 Happy forecasting!")
+
+if __name__ == "__main__":
+    main()
