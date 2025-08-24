@@ -1,0 +1,16 @@
+{
+  "training_cutoff": "2023-11-30",
+  "training_records": 68,
+  "test_records": 17,
+  "models_trained": [
+    "Prophet",
+    "XGBoost",
+    "LSTM",
+    "Naive",
+    "Seasonal_Naive",
+    "Moving_Average",
+    "Ensemble"
+  ],
+  "best_model": null,
+  "training_date": "2025-07-10 08:55:48"
+}

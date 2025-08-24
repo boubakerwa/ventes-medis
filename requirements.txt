@@ -1,0 +1,32 @@
+# Essential data manipulation and analysis
+pandas>=1.5.0
+numpy>=1.24.0
+openpyxl>=3.1.0
+
+# Basic statistical analysis
+statsmodels>=0.14.0
+scipy>=1.11.0
+
+# Time series forecasting
+prophet>=1.1.0
+xgboost>=1.7.0
+scikit-learn>=1.3.0
+
+# Deep learning for LSTM
+tensorflow>=2.13.0
+keras>=2.13.0
+scikit-learn>=1.3.0
+
+# Basic visualization
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Development and exploration
+jupyter>=1.0.0
+ipython>=8.14.0
+
+# Web apps and dashboards
+streamlit>=1.28.0
+
+# Utilities
+python-dateutil>=2.8.0 
